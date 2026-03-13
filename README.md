@@ -31,9 +31,29 @@ cd agentmock-mcp
 npm install
 ```
 
-### 2. Add to Claude Desktop
+### 2. Register the server
 
-Open your Claude Desktop config file:
+Pick the client you use:
+
+#### Claude Code (terminal)
+
+```bash
+claude mcp add agentmock node --import tsx/esm /absolute/path/to/agentmock-mcp/src/server.ts
+```
+
+Verify it's connected:
+
+```bash
+claude mcp list
+```
+
+You should see `agentmock` in the list. Then just start a session — the tools are available immediately.
+
+> **Windows users:** if you see a spawn error, use the full path to `node.exe` (e.g. `C:\Program Files\nodejs\node.exe`) instead of `node`.
+
+#### Claude Desktop
+
+Open your config file:
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
@@ -53,9 +73,9 @@ Add the following inside `"mcpServers"`:
 
 Replace `/absolute/path/to/agentmock-mcp` with the actual path on your machine.
 
-### 3. Restart Claude Desktop
+### 3. Verify it's working
 
-AgentMock tools will appear automatically. Ask Claude: *"ping the AgentMock server"* to verify it's working.
+Ask Claude: *"ping the AgentMock server"* — you should get a pong with a timestamp back.
 
 ---
 
