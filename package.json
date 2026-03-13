@@ -1,0 +1,36 @@
+{
+  "name": "agentmock-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for stateful mock APIs and synthetic databases",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:typecheck": "tsc --project tsconfig.test.json --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "mock",
+    "api",
+    "testing",
+    "ai-agents"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@faker-js/faker": "^10.3.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}
