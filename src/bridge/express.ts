@@ -45,7 +45,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Precondition: only call this when result.isError is true.
 // Calling it on a success payload will throw (payload.error is undefined).
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function httpStatusFor(payload: { error: { type: string; code?: string } }): number {
   const { type, code } = payload.error;
   if (code === "resource_missing") return 404;
