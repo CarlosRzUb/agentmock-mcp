@@ -133,6 +133,66 @@ app.get("/v1/payment_intents", async (req, res) => {
   }
 });
 
+// ─── Subscriptions ────────────────────────────────────────────────────────────
+
+app.post("/v1/subscriptions", async (req, res) => {
+  // Normalise Stripe SDK field name: customer → customer_id
+  const body = { ...req.body };
+  if (body.customer) { body.customer_id = body.customer; delete body.customer; }
+
+  const result = await stripeCreateSubscriptionHandler(body);
+  const data = JSON.parse(result.content[0].text);
+  if (result.isError) {
+    res.status(httpStatusFor(data)).json(data);
+  } else {
+    res.status(200).json(data);
+  }
+});
+
+app.get("/v1/subscriptions/:id", async (req, res) => {
+  const result = await stripeRetrieveSubscriptionHandler({ id: req.params.id });
+  const data = JSON.parse(result.content[0].text);
+  if (result.isError) {
+    res.status(httpStatusFor(data)).json(data);
+  } else {
+    res.status(200).json(data);
+  }
+});
+
+app.get("/v1/subscriptions", async (req, res) => {
+  const rawLimit = req.query.limit;
+  const limit = rawLimit ? parseInt(rawLimit as string, 10) : undefined;
+  const customer_id = req.query.customer as string | undefined;
+  const result = await stripeListSubscriptionsHandler({
+    ...(customer_id ? { customer_id } : {}),
+    ...(Number.isFinite(limit) ? { limit } : {}),
+  });
+  const data = JSON.parse(result.content[0].text);
+  if (result.isError) {
+    res.status(httpStatusFor(data)).json(data);
+  } else {
+    res.status(200).json(data);
+  }
+});
+
+// ─── AgentMock control endpoint ───────────────────────────────────────────────
+
+// Note: setMockScenarioHandler returns plain text strings (not JSON).
+// This route uses a specialised adapter — do NOT JSON.parse the result text.
+app.post("/agentmock/scenario", async (req, res) => {
+  const result = await setMockScenarioHandler(req.body);
+  if (result.isError) {
+    res.status(400).json({
+      error: {
+        type: "invalid_request_error",
+        message: result.content[0].text,
+      },
+    });
+  } else {
+    res.status(200).json({ message: result.content[0].text });
+  }
+});
+
 // ─── Global error handler ─────────────────────────────────────────────────────
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
