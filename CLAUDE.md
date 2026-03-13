@@ -55,10 +55,12 @@ src/
 - [x] src/db/store.ts — typed entities, Maps per integration, session mgmt, newId helpers
 - [x] src/tools/stripe.ts
 - [x] src/tools/session.ts
+- [x] src/scenarios/index.ts
+- [ ] src/bridge/express.ts  ← NEXT (Pro tier — active)
+
+## Post-MVP / Future Scope
 - [ ] src/tools/shopify.ts
 - [ ] src/tools/zendesk.ts
-- [x] src/scenarios/index.ts
-- [ ] src/bridge/express.ts
 
 ## Monetization plan
 - Free tier: local stdio MCP server (open source / free download)
