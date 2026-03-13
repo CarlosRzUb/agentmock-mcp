@@ -210,7 +210,7 @@ export function registerStripeTools(server: McpServer): void {
     {
       email: z.string().email().describe("Customer email address"),
       name: z.string().describe("Customer full name"),
-      metadata: z.record(z.string()).optional().describe("Arbitrary key-value metadata"),
+      metadata: z.record(z.string(), z.string()).optional().describe("Arbitrary key-value metadata"),
     },
     stripeCreateCustomerHandler
   );
@@ -251,7 +251,7 @@ export function registerStripeTools(server: McpServer): void {
         .optional()
         .describe("Test token (e.g. tok_chargeDeclined) or real payment method ID"),
       customer_id: z.string().optional().describe("ID of the customer to associate"),
-      metadata: z.record(z.string()).optional().describe("Arbitrary key-value metadata"),
+      metadata: z.record(z.string(), z.string()).optional().describe("Arbitrary key-value metadata"),
     },
     stripeCreatePaymentIntentHandler
   );
@@ -288,7 +288,7 @@ export function registerStripeTools(server: McpServer): void {
     {
       customer_id: z.string().describe("ID of the customer (must exist in the mock store)"),
       price_id: z.string().describe("Price ID (any string — no catalog validation)"),
-      metadata: z.record(z.string()).optional().describe("Arbitrary key-value metadata"),
+      metadata: z.record(z.string(), z.string()).optional().describe("Arbitrary key-value metadata"),
     },
     stripeCreateSubscriptionHandler
   );
