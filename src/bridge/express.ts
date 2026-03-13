@@ -1,6 +1,18 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import { fileURLToPath } from "url";
+import {
+  stripeCreateCustomerHandler,
+  stripeRetrieveCustomerHandler,
+  stripeListCustomersHandler,
+  stripeCreatePaymentIntentHandler,
+  stripeRetrievePaymentIntentHandler,
+  stripeListPaymentIntentsHandler,
+  stripeCreateSubscriptionHandler,
+  stripeRetrieveSubscriptionHandler,
+  stripeListSubscriptionsHandler,
+} from "../tools/stripe.js";
+import { setMockScenarioHandler } from "../tools/session.js";
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -43,9 +55,41 @@ function httpStatusFor(payload: { error: { type: string; code?: string } }): num
   return 400;
 }
 
-// ─── Routes go here (Tasks 3-5) ───────────────────────────────────────────────
-// IMPORTANT: all app.get/app.post route registrations must be added ABOVE the
-// global error handler below. Routes registered after it will not have errors caught.
+// ─── Customers ────────────────────────────────────────────────────────────────
+
+app.post("/v1/customers", async (req, res) => {
+  const result = await stripeCreateCustomerHandler(req.body);
+  const data = JSON.parse(result.content[0].text);
+  if (result.isError) {
+    res.status(httpStatusFor(data)).json(data);
+  } else {
+    res.status(200).json(data);
+  }
+});
+
+app.get("/v1/customers/:id", async (req, res) => {
+  const result = await stripeRetrieveCustomerHandler({ id: req.params.id });
+  const data = JSON.parse(result.content[0].text);
+  if (result.isError) {
+    res.status(httpStatusFor(data)).json(data);
+  } else {
+    res.status(200).json(data);
+  }
+});
+
+app.get("/v1/customers", async (req, res) => {
+  const rawLimit = req.query.limit;
+  const limit = rawLimit ? parseInt(rawLimit as string, 10) : undefined;
+  const result = await stripeListCustomersHandler({
+    ...(Number.isFinite(limit) ? { limit } : {}),
+  });
+  const data = JSON.parse(result.content[0].text);
+  if (result.isError) {
+    res.status(httpStatusFor(data)).json(data);
+  } else {
+    res.status(200).json(data);
+  }
+});
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 
