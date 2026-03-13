@@ -148,16 +148,57 @@ export async function stripeListPaymentIntentsHandler(input: {
   return ok({ data: data.slice(0, input.limit ?? 10), hasMore: false });
 }
 
-// ─── Subscription stubs (replaced in Task 5) ─────────────────────────────────
+// ─── Subscriptions ────────────────────────────────────────────────────────────
 
-export async function stripeCreateSubscriptionHandler(_input: unknown): Promise<ToolResult> {
-  throw new Error("Not yet implemented");
+export async function stripeCreateSubscriptionHandler(input: {
+  customer_id: string;
+  price_id: string;
+  metadata?: Record<string, string>;
+}): Promise<ToolResult> {
+  const err = resolveScenario(undefined, store.getSession()?.scenarioId);
+  if (err) return scenarioErr(err);
+
+  if (!store.stripe.customers.has(input.customer_id)) {
+    return customerMissing(input.customer_id);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const subscription: StripeSubscription = {
+    id: newId.stripeSubscription(),
+    customerId: input.customer_id,
+    status: "active",
+    priceId: input.price_id,
+    currentPeriodEnd: now + 30 * 24 * 60 * 60,
+    created: now,
+    metadata: input.metadata ?? {},
+  };
+  store.stripe.subscriptions.set(subscription.id, subscription);
+  return ok(subscription);
 }
-export async function stripeRetrieveSubscriptionHandler(_input: unknown): Promise<ToolResult> {
-  throw new Error("Not yet implemented");
+
+export async function stripeRetrieveSubscriptionHandler(input: {
+  id: string;
+}): Promise<ToolResult> {
+  const err = resolveScenario(undefined, store.getSession()?.scenarioId);
+  if (err) return scenarioErr(err);
+
+  const subscription = store.stripe.subscriptions.get(input.id);
+  if (!subscription) return resourceMissing(input.id);
+  return ok(subscription);
 }
-export async function stripeListSubscriptionsHandler(_input: unknown): Promise<ToolResult> {
-  throw new Error("Not yet implemented");
+
+export async function stripeListSubscriptionsHandler(input: {
+  customer_id?: string;
+  limit?: number;
+}): Promise<ToolResult> {
+  const err = resolveScenario(undefined, store.getSession()?.scenarioId);
+  if (err) return scenarioErr(err);
+
+  let data = Array.from(store.stripe.subscriptions.values());
+  if (input.customer_id) {
+    data = data.filter((sub) => sub.customerId === input.customer_id);
+  }
+  return ok({ data: data.slice(0, input.limit ?? 10), hasMore: false });
 }
 
 // ─── Registration ─────────────────────────────────────────────────────────────
@@ -239,5 +280,42 @@ export function registerStripeTools(server: McpServer): void {
         .describe("Max results (1–100, default 10)"),
     },
     stripeListPaymentIntentsHandler
+  );
+
+  server.tool(
+    "stripe_create_subscription",
+    "Create a mock Stripe subscription for an existing customer. Returns resource_missing if the customer does not exist. price_id is accepted as any string — no catalog validation.",
+    {
+      customer_id: z.string().describe("ID of the customer (must exist in the mock store)"),
+      price_id: z.string().describe("Price ID (any string — no catalog validation)"),
+      metadata: z.record(z.string()).optional().describe("Arbitrary key-value metadata"),
+    },
+    stripeCreateSubscriptionHandler
+  );
+
+  server.tool(
+    "stripe_retrieve_subscription",
+    "Retrieve a mock Stripe subscription by ID. Returns resource_missing if not found.",
+    {
+      id: z.string().describe("Subscription ID (sub_...)"),
+    },
+    stripeRetrieveSubscriptionHandler
+  );
+
+  server.tool(
+    "stripe_list_subscriptions",
+    "List mock Stripe subscriptions. Optionally filter by customer_id.",
+    {
+      customer_id: z.string().optional().describe("Filter by customer ID"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .default(10)
+        .optional()
+        .describe("Max results (1–100, default 10)"),
+    },
+    stripeListSubscriptionsHandler
   );
 }
