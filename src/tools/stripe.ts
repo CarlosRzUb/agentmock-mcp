@@ -96,16 +96,56 @@ export async function stripeListCustomersHandler(input: {
   return ok({ data, hasMore: false });
 }
 
-// ─── Payment Intent stubs (replaced in Task 4) ───────────────────────────────
+// ─── Payment Intents ──────────────────────────────────────────────────────────
 
-export async function stripeCreatePaymentIntentHandler(_input: unknown): Promise<ToolResult> {
-  throw new Error("Not yet implemented");
+export async function stripeCreatePaymentIntentHandler(input: {
+  amount: number;
+  currency: string;
+  payment_method?: string;
+  customer_id?: string;
+  metadata?: Record<string, string>;
+}): Promise<ToolResult> {
+  // Layer 1 (inline token) is checked first, then Layer 2 (session scenario).
+  // If a scenario fires, NO entity is created or stored.
+  const err = resolveScenario(input.payment_method, store.getSession()?.scenarioId);
+  if (err) return scenarioErr(err);
+
+  const intent: StripePaymentIntent = {
+    id: newId.stripePaymentIntent(),
+    amount: input.amount,
+    currency: input.currency,
+    status: input.payment_method ? "succeeded" : "requires_payment_method",
+    customerId: input.customer_id,
+    created: Math.floor(Date.now() / 1000),
+    metadata: input.metadata ?? {},
+  };
+  store.stripe.paymentIntents.set(intent.id, intent);
+  return ok(intent);
 }
-export async function stripeRetrievePaymentIntentHandler(_input: unknown): Promise<ToolResult> {
-  throw new Error("Not yet implemented");
+
+export async function stripeRetrievePaymentIntentHandler(input: {
+  id: string;
+}): Promise<ToolResult> {
+  const err = resolveScenario(undefined, store.getSession()?.scenarioId);
+  if (err) return scenarioErr(err);
+
+  const intent = store.stripe.paymentIntents.get(input.id);
+  if (!intent) return resourceMissing(input.id);
+  return ok(intent);
 }
-export async function stripeListPaymentIntentsHandler(_input: unknown): Promise<ToolResult> {
-  throw new Error("Not yet implemented");
+
+export async function stripeListPaymentIntentsHandler(input: {
+  customer_id?: string;
+  limit?: number;
+}): Promise<ToolResult> {
+  const err = resolveScenario(undefined, store.getSession()?.scenarioId);
+  if (err) return scenarioErr(err);
+
+  let data = Array.from(store.stripe.paymentIntents.values());
+  if (input.customer_id) {
+    data = data.filter((pi) => pi.customerId === input.customer_id);
+  }
+  return ok({ data: data.slice(0, input.limit ?? 10), hasMore: false });
 }
 
 // ─── Subscription stubs (replaced in Task 5) ─────────────────────────────────
@@ -157,5 +197,47 @@ export function registerStripeTools(server: McpServer): void {
         .describe("Max results (1–100, default 10)"),
     },
     stripeListCustomersHandler
+  );
+
+  server.tool(
+    "stripe_create_payment_intent",
+    "Create a mock Stripe PaymentIntent. Pass a test token as payment_method to trigger card errors (e.g. tok_chargeDeclined, tok_chargeDeclinedInsufficientFunds, tok_chargeDeclinedIncorrectCvc, tok_chargeDeclinedExpiredCard). Any raw scenario key also works (power-user feature). Status is 'succeeded' if payment_method is provided, 'requires_payment_method' otherwise.",
+    {
+      amount: z.number().int().positive().describe("Amount in cents (e.g. 1000 = $10.00)"),
+      currency: z.string().length(3).describe("ISO 4217 currency code (e.g. 'usd', 'eur')"),
+      payment_method: z
+        .string()
+        .optional()
+        .describe("Test token (e.g. tok_chargeDeclined) or real payment method ID"),
+      customer_id: z.string().optional().describe("ID of the customer to associate"),
+      metadata: z.record(z.string()).optional().describe("Arbitrary key-value metadata"),
+    },
+    stripeCreatePaymentIntentHandler
+  );
+
+  server.tool(
+    "stripe_retrieve_payment_intent",
+    "Retrieve a mock Stripe PaymentIntent by ID. Returns resource_missing if not found.",
+    {
+      id: z.string().describe("Payment intent ID (pi_...)"),
+    },
+    stripeRetrievePaymentIntentHandler
+  );
+
+  server.tool(
+    "stripe_list_payment_intents",
+    "List mock Stripe PaymentIntents. Optionally filter by customer_id.",
+    {
+      customer_id: z.string().optional().describe("Filter by customer ID"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .default(10)
+        .optional()
+        .describe("Max results (1–100, default 10)"),
+    },
+    stripeListPaymentIntentsHandler
   );
 }
