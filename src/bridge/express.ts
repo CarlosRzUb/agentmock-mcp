@@ -55,11 +55,26 @@ function httpStatusFor(payload: { error: { type: string; code?: string } }): num
   return 400;
 }
 
+// Extract text from ToolResult content block (type guard for union type).
+function getTextContent(block: unknown): string {
+  if (
+    block !== null &&
+    typeof block === "object" &&
+    "type" in block &&
+    block.type === "text" &&
+    "text" in block &&
+    typeof block.text === "string"
+  ) {
+    return block.text;
+  }
+  throw new Error("ToolResult content block is not a text block");
+}
+
 // ─── Customers ────────────────────────────────────────────────────────────────
 
 app.post("/v1/customers", async (req, res) => {
   const result = await stripeCreateCustomerHandler(req.body);
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -69,7 +84,7 @@ app.post("/v1/customers", async (req, res) => {
 
 app.get("/v1/customers/:id", async (req, res) => {
   const result = await stripeRetrieveCustomerHandler({ id: req.params.id });
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -83,7 +98,7 @@ app.get("/v1/customers", async (req, res) => {
   const result = await stripeListCustomersHandler({
     ...(Number.isFinite(limit) ? { limit } : {}),
   });
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -99,7 +114,7 @@ app.post("/v1/payment_intents", async (req, res) => {
   if (body.customer) { body.customer_id = body.customer; delete body.customer; }
 
   const result = await stripeCreatePaymentIntentHandler(body);
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -109,7 +124,7 @@ app.post("/v1/payment_intents", async (req, res) => {
 
 app.get("/v1/payment_intents/:id", async (req, res) => {
   const result = await stripeRetrievePaymentIntentHandler({ id: req.params.id });
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -125,7 +140,7 @@ app.get("/v1/payment_intents", async (req, res) => {
     ...(customer_id ? { customer_id } : {}),
     ...(Number.isFinite(limit) ? { limit } : {}),
   });
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -141,7 +156,7 @@ app.post("/v1/subscriptions", async (req, res) => {
   if (body.customer) { body.customer_id = body.customer; delete body.customer; }
 
   const result = await stripeCreateSubscriptionHandler(body);
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -151,7 +166,7 @@ app.post("/v1/subscriptions", async (req, res) => {
 
 app.get("/v1/subscriptions/:id", async (req, res) => {
   const result = await stripeRetrieveSubscriptionHandler({ id: req.params.id });
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -167,7 +182,7 @@ app.get("/v1/subscriptions", async (req, res) => {
     ...(customer_id ? { customer_id } : {}),
     ...(Number.isFinite(limit) ? { limit } : {}),
   });
-  const data = JSON.parse(result.content[0].text);
+  const data = JSON.parse(getTextContent(result.content[0]));
   if (result.isError) {
     res.status(httpStatusFor(data)).json(data);
   } else {
@@ -185,11 +200,11 @@ app.post("/agentmock/scenario", async (req, res) => {
     res.status(400).json({
       error: {
         type: "invalid_request_error",
-        message: result.content[0].text,
+        message: getTextContent(result.content[0]),
       },
     });
   } else {
-    res.status(200).json({ message: result.content[0].text });
+    res.status(200).json({ message: getTextContent(result.content[0]) });
   }
 });
 
