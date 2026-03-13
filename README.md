@@ -175,9 +175,6 @@ src/
 - [ ] **Cloud Hosting** — 24/7 uptime for teams, no local setup required
 - [ ] **Async Webhook Simulation** — trigger `payment_intent.succeeded`, `invoice.payment_failed`, and other events to test your webhook handlers end to end
 
-**Want early access to the cloud version?**
-[👉 Drop your email here to get early access to the Cloud version](YOUR_FORM_LINK_HERE)
-
 ---
 
 ## License
