@@ -44,11 +44,15 @@ All business logic (scenario injection, ID generation, store state) lives in the
 Applied globally in this order:
 
 ```ts
+import cors from "cors";  // default import — works with esModuleInterop: true
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(authMiddleware);
 ```
+
+**`cors` import note:** `cors` is a CommonJS package. Import it as `import cors from "cors"`. This works because `tsconfig.json` has `"esModuleInterop": true`.
 
 ### `cors()`
 
@@ -110,41 +114,71 @@ Outside the `/v1/` namespace to avoid collision with real Stripe paths. Auth mid
 
 ## Request Parameter Mapping
 
-### POST body fields
+### POST body — field name normalisation
 
-Stripe sends snake_case field names. Our handlers already accept snake_case inputs — no mapping needed. `req.body` is passed directly.
+The Stripe SDK sends `customer` (not `customer_id`) for subscription and payment intent creation. The bridge must normalise these before passing to handlers:
+
+| Route | Stripe SDK field | Handler input field | Action |
+|---|---|---|---|
+| `POST /v1/payment_intents` | `customer` | `customer_id` | Rename in route handler |
+| `POST /v1/subscriptions` | `customer` | `customer_id` | Rename in route handler |
+| `POST /v1/subscriptions` | _(Stripe uses `items[0][price]`)_ | `price_id` | Accept `price_id` directly — MVP simplification, does not parse Stripe's `items` array |
+
+All other POST body fields (`email`, `name`, `amount`, `currency`, `payment_method`, `metadata`) are passed directly — names match.
+
+Normalisation pattern in each affected route:
+
+```ts
+const input = { ...req.body };
+if (input.customer) { input.customer_id = input.customer; delete input.customer; }
+```
 
 ### GET query parameter mapping
 
-Stripe list endpoints use `?customer=<id>` (not `customer_id`). The bridge normalises this:
+| Query param | Handler input field | Notes |
+|---|---|---|
+| `?customer=<id>` | `customer_id` | Rename |
+| `?limit=<n>` | `limit` | Coerce to integer (see below) |
 
-| Query param | Handler input field |
-|---|---|
-| `?customer=<id>` | `customer_id` |
-| `?limit=<n>` | `limit` (parsed as integer) |
+### `limit` coercion
 
-`limit` must be coerced from string to number: `parseInt(req.query.limit as string, 10)` — passed only if present and a valid integer.
+```ts
+const rawLimit = req.query.limit;
+const limit = rawLimit ? parseInt(rawLimit as string, 10) : undefined;
+// Pass limit only if it is a valid finite integer
+const handlerInput = { ..., ...(Number.isFinite(limit) ? { limit } : {}) };
+```
+
+`parseInt` on a non-numeric string returns `NaN`. Guard with `Number.isFinite()` — do not pass `NaN` to the handler (it causes `Array.slice(0, NaN)` which returns an empty array instead of the default 10).
 
 ---
 
 ## HTTP Status Code Mapping
 
-The adapter helper `httpStatusFor(payload)` maps error payloads to HTTP status codes:
+The `httpStatusFor(payload)` helper is a standalone mapping inside `express.ts`. It does not consult the `SCENARIOS` registry (intentional — keeps the bridge self-contained). All error codes that can be produced by the existing handlers are enumerated explicitly:
 
-| Condition | HTTP status |
-|---|---|
-| Happy path (`isError` absent) | `200` |
-| `error.code === "resource_missing"` | `404` |
-| `error.type === "card_error"` | `402` |
-| `error.code === "rate_limit"` | `429` |
-| `error.code === "api_key_invalid"` | `401` |
-| All other `isError` | `400` |
+```ts
+// Precondition: only call this when result.isError is true.
+// Calling it on a success payload will throw (payload.error is undefined).
+function httpStatusFor(payload: { error: { type: string; code?: string } }): number {
+  const { type, code } = payload.error;
+  if (code === "resource_missing") return 404;
+  if (type === "card_error") return 402;
+  if (code === "rate_limit") return 429;
+  if (code === "api_key_invalid") return 401;
+  return 400; // invalid_request_error and any other
+}
+```
+
+If a new scenario is added to the `SCENARIOS` registry with a novel HTTP status code, this mapping must be updated in sync. This is acceptable for the MVP scale.
 
 ---
 
 ## Adapter Pattern
 
-Every route follows the same shape:
+### Stripe routes (JSON responses)
+
+Every Stripe route (customers, payment intents, subscriptions) follows this shape:
 
 ```ts
 router.post("/v1/customers", async (req, res) => {
@@ -158,7 +192,60 @@ router.post("/v1/customers", async (req, res) => {
 });
 ```
 
-Error handling: if a handler throws unexpectedly, a global Express error handler catches it and returns `500` with a generic error payload.
+All Stripe handlers return valid JSON in `content[0].text` — this pattern is safe for all 9 Stripe routes.
+
+### AgentMock scenario route (plain-text handler — specialised adapter)
+
+`setMockScenarioHandler` returns **plain text strings**, not JSON (e.g. `"Active scenario set to: payment_declined"`). It never throws — all error conditions are returned as `{ isError: true }` results. The global error handler provides fallback coverage if an unexpected throw ever occurs; no per-route `try/catch` is needed. The `/agentmock/scenario` route uses a different adapter:
+
+```ts
+router.post("/agentmock/scenario", async (req, res) => {
+  const result = await setMockScenarioHandler(req.body);
+  if (result.isError) {
+    res.status(400).json({
+      error: {
+        type: "invalid_request_error",
+        message: result.content[0].text,
+      },
+    });
+  } else {
+    res.status(200).json({ message: result.content[0].text });
+  }
+});
+```
+
+**Request body schema:**
+
+```json
+{ "scenarioId": "payment_declined" }
+```
+
+`scenarioId` is camelCase (matches handler input). Omit the field entirely to clear the scenario.
+
+**Response bodies:**
+
+- Success (set): `200` `{ "message": "Active scenario set to: payment_declined" }`
+- Success (clear): `200` `{ "message": "Active scenario cleared. Running in happy path mode." }`
+- Error (invalid id): `400` `{ "error": { "type": "invalid_request_error", "message": "Unknown scenario: \"foo\". Valid values are: ..." } }`
+
+---
+
+## Global Error Handler
+
+Catches any unhandled exception thrown by a route handler and returns a Stripe-shaped 500 response:
+
+```ts
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Unhandled bridge error:", err);
+  res.status(500).json({
+    error: {
+      type: "api_error",
+      code: "server_error",
+      message: "An unexpected error occurred.",
+    },
+  });
+});
+```
 
 ---
 
@@ -168,14 +255,14 @@ Error handling: if a handler throws unexpectedly, a global Express error handler
 "bridge": "tsx src/bridge/express.ts"
 ```
 
-The server binds to `process.env.PORT ?? 3000` and logs the port to stderr on startup.
+The server binds to `process.env.PORT ?? 3000` and logs `AgentMock HTTP bridge running on port <PORT>` to stderr on startup.
 
 ---
 
 ## Dependencies
 
 - `express` — already in `package.json`
-- `cors` — needs to be installed (`npm install cors` + `npm install -D @types/cors`)
+- `cors` — **must be installed**: `npm install cors && npm install -D @types/cors`
 
 ---
 
@@ -188,3 +275,4 @@ The server binds to `process.env.PORT ?? 3000` and logs the port to stderr on st
 - HTTPS termination (handled by Railway/Render reverse proxy)
 - Shopify / Zendesk endpoints
 - Pagination cursors
+- Stripe `items[0][price]` array parsing for subscriptions (accept `price_id` directly)
