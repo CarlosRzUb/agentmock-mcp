@@ -2,8 +2,7 @@
 
 A stateful mock API server for AI agent developers. Test your agents against realistic fake integrations — Stripe, Shopify, Zendesk — without touching production data or needing real API keys.
 
-- **Free tier** — runs locally as an MCP server (stdio transport), connects directly to Claude Desktop or any MCP-compatible client
-- **Pro tier** — cloud-hosted HTTP bridge, accessible from anywhere via REST
+Stop letting your Stripe sandbox rack up test charges. Stop writing brittle hand-rolled fixtures. AgentMock gives your agent a fully stateful fake Stripe it can create customers, charge cards, and trigger failures against — all locally, all in seconds.
 
 ---
 
@@ -20,7 +19,7 @@ AgentMock provides all of this with zero configuration.
 
 ---
 
-## Quick start (Free tier — local MCP)
+## Quick start
 
 **Prerequisites:** Node.js 22+
 
@@ -60,38 +59,7 @@ AgentMock tools will appear automatically. Ask Claude: *"ping the AgentMock serv
 
 ---
 
-## Pro tier — HTTP bridge
-
-The Pro tier exposes a Stripe-compatible REST API. You can point any Stripe SDK at it by swapping the base URL.
-
-### Run locally
-
-```bash
-AGENTMOCK_API_KEY=your-secret-key npm run bridge
-# Server starts at http://localhost:3000
-```
-
-### Deploy to Railway
-
-This repo is Railway-ready. Set one environment variable in your Railway project:
-
-| Variable | Value |
-|---|---|
-| `AGENTMOCK_API_KEY` | Any secret string — used to authenticate all requests |
-
-Railway will automatically run `npm run build` then `npm start`.
-
-### Authenticate
-
-All requests must include the API key as a Bearer token:
-
-```
-Authorization: Bearer your-secret-key
-```
-
----
-
-## Available tools (Free tier MCP)
+## Available tools
 
 ### `ping`
 Check if the server is alive. Returns a pong with a timestamp.
@@ -126,19 +94,19 @@ scenarioId  — one of the scenario IDs listed below, or omit to reset to happy 
 
 Activate any scenario with `set_mock_scenario` to make all tools return a realistic error.
 
-| Scenario ID | Error type | HTTP status | Description |
-|---|---|---|---|
-| `payment_declined` | `card_error` | 402 | Generic card decline |
-| `insufficient_funds` | `card_error` | 402 | Card declined — insufficient funds |
-| `invalid_cvc` | `card_error` | 402 | Incorrect CVC code |
-| `expired_card` | `card_error` | 402 | Card expired |
-| `rate_limit_exceeded` | `api_error` | 429 | Too many requests |
+| Scenario ID | Error type | Description |
+|---|---|---|
+| `payment_declined` | `card_error` | Generic card decline |
+| `insufficient_funds` | `card_error` | Card declined — insufficient funds |
+| `invalid_cvc` | `card_error` | Incorrect CVC code |
+| `expired_card` | `card_error` | Card expired |
+| `rate_limit_exceeded` | `api_error` | Too many requests |
 
 Call `set_mock_scenario` with no `scenarioId` to return to the happy path.
 
 ### Inline test tokens
 
-For `stripe_create_payment_intent` only, you can trigger a one-off error by passing a test token as `payment_method`. These mirror Stripe's own test token names:
+For `stripe_create_payment_intent`, pass a test token as `payment_method` to trigger a one-off error without changing the global scenario. These mirror Stripe's own test token names:
 
 | Token | Triggers |
 |---|---|
@@ -151,69 +119,10 @@ Inline tokens take priority over any active session scenario.
 
 ---
 
-## HTTP bridge endpoints (Pro tier)
-
-Base URL: your Railway deployment URL (or `http://localhost:3000` locally).
-
-All endpoints are Stripe API-compatible in shape.
-
-### Customers
-
-```
-POST   /v1/customers
-GET    /v1/customers/:id
-GET    /v1/customers?limit=10
-```
-
-### Payment Intents
-
-```
-POST   /v1/payment_intents
-GET    /v1/payment_intents/:id
-GET    /v1/payment_intents?customer=cus_...&limit=10
-```
-
-### Subscriptions
-
-```
-POST   /v1/subscriptions
-GET    /v1/subscriptions/:id
-GET    /v1/subscriptions?customer=cus_...&limit=10
-```
-
-### Scenario control
-
-```
-POST   /agentmock/scenario
-Body:  { "scenarioId": "payment_declined" }   — activate a scenario
-Body:  {}                                      — reset to happy path
-```
-
-### Using the Stripe SDK against AgentMock
-
-```typescript
-import Stripe from "stripe";
-
-const stripe = new Stripe("any-string", {
-  apiVersion: "2024-06-20",
-  baseURL: "https://your-railway-app.railway.app",
-  httpClient: Stripe.createFetchHttpClient(),
-});
-
-// Works exactly like the real Stripe SDK
-const customer = await stripe.customers.create({
-  email: "test@example.com",
-  name: "Jane Doe",
-});
-```
-
----
-
 ## Development
 
 ```bash
-npm run dev      # Run the MCP server (stdio) with hot reload
-npm run bridge   # Run the HTTP bridge locally
+npm run dev      # Run the MCP server with hot reload
 npm run build    # Compile TypeScript → dist/
 npm test         # Run tests
 npm run test:watch    # Watch mode
@@ -234,17 +143,20 @@ src/
   scenarios/
     index.ts             # Scenario registry + resolveScenario logic
   bridge/
-    express.ts           # HTTP bridge (Pro tier)
+    express.ts           # HTTP bridge (future cloud hosting)
 ```
 
 ---
 
-## Roadmap
+## 🚀 Roadmap / Coming Soon
 
-- [x] Stripe — customers, payment intents, subscriptions
-- [ ] Shopify — products, orders, customers
-- [ ] Zendesk — tickets, users, comments
-- [ ] API key gating + Lemon Squeezy billing for Pro tier
+- [ ] **Shopify** — products, orders, customers
+- [ ] **Zendesk** — tickets, users, comments
+- [ ] **Cloud Hosting** — 24/7 uptime for teams, no local setup required
+- [ ] **Async Webhook Simulation** — trigger `payment_intent.succeeded`, `invoice.payment_failed`, and other events to test your webhook handlers end to end
+
+**Want early access to the cloud version?**
+[👉 Drop your email here to get early access to the Cloud version](YOUR_FORM_LINK_HERE)
 
 ---
 

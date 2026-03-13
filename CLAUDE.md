@@ -68,3 +68,25 @@ src/
 - Deployment target: Railway or Render
 - Billing: Lemon Squeezy (Merchant of Record — handles EU VAT automatically)
 - Legal entity: Spanish autónomo under Tarifa Plana / Cuota Cero (Valencia)
+
+## Phase 4: Monetization & Pro Tier
+
+**Current state (internal — not public-facing yet):**
+- The Express HTTP bridge (`src/bridge/express.ts`) is fully built and deployed on Railway.
+- API key authentication middleware is in place (`AGENTMOCK_API_KEY` env var).
+- The infrastructure is ready; we are deliberately not marketing it during the open-core traction phase.
+
+**GTM strategy:**
+- Launch phase: position as a pure open-source tool. No pricing, no "Pro" mention in public docs.
+- Goal: reach 50 free users and validate pain points via community feedback (Reddit, HN, X).
+- Monetization unlock: once we have traction, gate the cloud-hosted version behind a Lemon Squeezy subscription.
+
+**Next technical step when ready to monetize:**
+- Build the **Webhook Simulator** — the key differentiating feature for the cloud tier.
+- It will let agents trigger async Stripe events (`payment_intent.succeeded`, `invoice.payment_failed`, `customer.subscription.deleted`, etc.) against a user-specified endpoint.
+- This feature is intentionally held back from the open-source version to justify the monthly subscription.
+- Implementation plan: a new `src/tools/webhooks.ts` + a scheduler in the Express bridge that POSTs signed Stripe-shaped webhook payloads to a configurable URL.
+
+**Billing stack (when ready):**
+- Lemon Squeezy as Merchant of Record (handles EU VAT automatically).
+- Legal entity: Spanish autónomo under Tarifa Plana / Cuota Cero (Valencia).
