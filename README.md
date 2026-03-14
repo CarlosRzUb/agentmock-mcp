@@ -168,6 +168,12 @@ src/
 
 ---
 
+## Stay updated
+
+Want to know when new integrations and features drop? [Sign up for release notifications →](https://docs.google.com/forms/d/e/1FAIpQLSecvjVlcSLYo5ECCkvH1qZYCM_5R7uX7u_7S7GkzlggDLVehQ/viewform?usp=publish-editor)
+
+---
+
 ## 🚀 Roadmap / Coming Soon
 
 - [ ] **Shopify** — products, orders, customers
